@@ -4,7 +4,6 @@ author: "Claire Huang"
 date: "11/20/2017"
 output:
   pdf_document: default
-  html_document: default
 ---
 
 ```{r setup, include=FALSE}
