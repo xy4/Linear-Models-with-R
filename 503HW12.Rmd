@@ -1,0 +1,329 @@
+---
+title: "HW12"
+author: "Claire Huang"
+date: "11/20/2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,include=FALSE}
+list.of.packages <- c("faraway", "knitr","ggplot2","dplyr","nnet","tidyr")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+require(faraway)
+require(ggplot2)
+require(dplyr)
+require(nnet)
+require(tidyr)
+```
+
+### 5.1
+
+The dataset discoveries lists the numbers of great inventions and scientific discoveries in each year from 1860 to 1959. 
+
+(a) Plot the discoveries over time and comment on the trend, if any. 
+
+The number of discoveries flucuated over time. It seems to be randomly distributed like white noise.
+
+```{r}
+# change the data from time series to data frame
+nd <- as.numeric(discoveries) # number of discoveries
+dis <- data.frame(nd)
+dis$year <- 1860:1959
+plot(discoveries,type='o')
+```
+
+
+(b) Fit a Poisson response model with a constant term. Now compute the mean number of discoveries per year. What is the relationship between this mean and the coefficient seen in the model? 
+
+```{r}
+mod <- glm(discoveries~1,family=poisson,discoveries)
+summary(mod)
+mean(discoveries)
+```
+
+```{r}
+exp(mod$coefficients)
+```
+
+Take the exponential value of the intercept, it is the mean. Hence, the rate of the poisson distribution is 3.1.
+
+(c) Use the deviance from the model to check whether the model fits the data. What does this say about whether the rate of discoveries is constant over time? 
+
+```{r}
+1-pchisq(164.68,99)
+```
+
+The p value is very small. We cannot accept the hypothese that the rate of discoveries is constant over time.
+
+(d) Make a table of how many years had zero, one, two, three, etc. discoveries. Collapse eight or more into a single category. Under an appropriate Poisson distribution, calculate the expected number of years with each number of discoveries. Plot the observed against the expected using a different plotting character to denote the number of discoveries. How well do they agree? 
+
+```{r}
+min(discoveries) #lower bound
+max(discoveries) # +1 upper bound
+ob <- cut(discoveries,breaks=c(0:8,12+1),right=FALSE)
+table(ob)
+```
+
+
+```{r}
+set.seed(123)
+dis$en <- rpois(100,3.1)
+ent <- cut(rpois(100,3.1),breaks=c(0:8,12+1),right=FALSE) # expected number in bins
+table(ent)
+ggplot(dis,aes(x=year))+geom_line(aes(y=en),lty=1)+geom_line(aes(y=nd),lty=2)
+```
+
+Two lines have some overlap in some years. However, they do not agree to most of the time.
+
+(e) Use the Pearsons Chi-squared test to check whether the observed numbers are consistent with the expected numbers. Interpret the result. 
+
+```{r}
+obs <- as.data.frame(table(ob))
+ens <- as.data.frame(table(dis$en))
+(pcs <- sum((obs$Freq-ens$Freq)^2/ens$Freq)) # pearson's chisquared statistics
+1-pchisq(pcs,df=99)
+```
+
+The p value of Pearson Chi-squared test is 1. It says the observed numbers are consistent with the expected numbers. But in our situation, $\hat{\mu}$=3.1, which is less than 5, we may need to furthur consider this result.
+
+(f) Fit a Poisson response model that is quadratic in the year. Test for the significance of the quadratic term. What does this say about the presence of a trend in discovery? 
+
+```{r}
+mod2 <- glm(nd~poly(year,2),family=poisson,dis)
+summary(mod2)
+```
+
+The predictor year and $year^2$ are significant. Hence, the rate is not constant as time goes by. 
+
+
+(g) Compute the predicted number of discoveries each year and show these predictions as a line drawn over the data. Comment on what you see. 
+
+```{r}
+ggplot(dis,aes(x=year))+geom_line(aes(y=mod2$fitted.values),lty=1)+geom_line(aes(y=nd),lty=2)
+```
+
+The predicted number of discoveries can roughly catch the trend of the true data. However, lots of details are missing from the line. 
+
+### 7.1 (A-G)
+
+The hsb data was collected as a subset of the High School and Beyond study conducted by the National Education Longitudinal Studies program of the National Center for Education Statistics. The variables are gender; race; socioeconomic status (SES); school type; chosen high school program type; scores on reading, writing, math, science, and social studies. We want to determine which factors are related to the choice of the type of program academic, vocational or genera that the students pursue in high school. The response is multinomial with three levels. 
+
+(a) Make a table showing the proportion of males and females choosing the three different programs. Comment on the difference. Repeat this comparison but for SES rather than gender.
+
+```{r}
+prop.table(xtabs(~prog+gender,data=hsb),2)
+prop.table(xtabs(~prog+ses,data=hsb),2)
+```
+
+For the first table, the first choice for both gender is academic and second choice is vocation. 53% of female choose academic program and 51% of male choose it. 24% of female choose vocation and 25% of male choose that. The rest people choose general.
+
+For the second table, no matter which social economic status the people are, they prefer academic program to other programs. Among the high social economic status people, 72% of them choose the academic program, and the second choice is general program with 15% of people. For people with low social economic status, 40% of them choose academic, 34% of them choose general and 25% of them choose vocation. For people who's social economic status is middle, 46% of them choose academic. However, they prefer vocation to general. 32% of them choose vocation program and 21% of them choose general program.
+
+(b) Construct a plot like the right panel of Figure 7.1 that shows the relationship between program choice and reading score. Comment on the plot. Repeat for math in place of reading. 
+
+From the plot below, we can see the proportion of academic increases as reading score increases. The proportion of vocation and general flucuates and have a decreasing trend as reading score increases.
+
+```{r}
+rgp <- mutate(hsb,readgp=cut_number(read,9)) %>% group_by(readgp,prog) %>% summarise(count=n()) %>% group_by(readgp) %>% mutate(etotal=sum(count),propotion=count/etotal)
+ggplot(rgp,aes(x=readgp,y=propotion,group=prog,linetype=prog))+geom_line()
+```
+
+
+As the writing score increases, the proption of academic increases and the proportion of general and vocation decrease.
+
+```{r}
+wgp <- mutate(hsb,wrgp=cut_number(write,9)) %>% group_by(wrgp,prog) %>% summarise(count=n()) %>% group_by(wrgp) %>% mutate(etotal=sum(count),propotion=count/etotal)
+ggplot(wgp,aes(x=wrgp,y=propotion,group=prog,linetype=prog))+geom_line()
+```
+
+
+(c) Compute the correlation matrix for the five subject scores. 
+
+```{r}
+cor(hsb[,7:11])
+```
+
+
+(d) Fit a multinomial response model for the program choice and examine the fitted coefficients. Of the five subjects, one gives unexpected coefficients. Identify this subject and suggest an explanation for this behavior. 
+
+```{r}
+mod <- multinom(prog ~ gender+race+ses+schtyp+read+write+math+science+socst,data=hsb)
+summary(mod)
+```
+
+The subject science has a positive coefficient while the other subjects have negative coefficients. This is weird because in the previous calculation we see all the five subjects has a positive correlation between each other. But if we consider the meaning of the coefficient, we realize that, when the score of science increases, the probability of choosing general and vocation will be higher than other subjects. Since the effect would be the exponential of coefficient. Positive coefficients means larger multiplicative change on results.
+
+(e) Construct a derived variable that is the sum of the five subject scores. Fit a multinomial model as before except with this one sum variable in place of the five subjects separately. Compare the two models to decide which should be preferred. 
+
+```{r}
+hsb$tot <- hsb$read+hsb$write+hsb$math+hsb$science+hsb$socst # summation
+modr <- multinom(prog ~ gender+race+ses+schtyp+tot,data=hsb)
+summary(modr)
+```
+
+
+```{r}
+deviance(modr)-deviance(mod)
+pchisq(22.7376,mod$edf-modr$edf,lower=F)
+hsb$tot <- NULL
+```
+
+p-value is small. We prefer the model that take the 5 subjects seperately.
+
+(f) Use a stepwise method to reduce the model. Which variables are in your selected model? 
+
+The varaibles are ses, schtyp, math, science, socst.
+
+```{r}
+mods <- step(mod,trace=0)
+summary(mods)
+```
+
+
+(g) Construct a plot of predicted probabilities from your selected model where the math score varies over the observed range. Other predictors should be set at the most common level or mean value as appropriate. Your plot should be similar to Figure 7.2. Comment on the relationship. 
+
+From the plot we can see the probability of choosing academic increases with math while the probability of general and vocation decrease.
+
+```{r}
+mathlevels <- min(hsb$math):max(hsb$math)
+# find the most common level
+summary(hsb$ses)
+summary(hsb$schtyp)
+summary(hsb$race)
+
+preds <- data.frame(math=mathlevels,predict(mods,data.frame(math=mathlevels,ses="middle",schtyp="public",race="white",science=mean(hsb$science),read=mean(hsb$read),write=mean(hsb$write),socst=mean(hsb$socst)),type="probs"))
+lpred <- gather(preds, prog,probability,-math)
+ggplot(lpred,aes(x=math,y=probability,group=prog,linetype=prog))+geom_line()
+
+```
+
+
+
+### 8.5 (A-D)
+
+Again using the Galapagos data, fit a Poisson model to the species response with the five geographic variables as predictors. Do not use the endemics variable. The purpose of this question is to compare six different ways of testing the significance of the elevation predictor, i.e., H0 :$\beta_{Elev} =0$. In each case, report the p-value. 
+
+(a) Use the z-statistic from the model summary. 
+
+```{r}
+mod <- glm(Species~Area+Elevation+Nearest+Scruz+Adjacent,family=poisson,data=gala)
+summary(mod)
+```
+
+The p value is significant at 0.001 level. Hence, we reject the null hypothesis that $\beta_{Elev}=0$.
+
+(b) Fit a model without elevation and use the difference in deviances to make the test. 
+
+```{r}
+modb <- glm(Species~Area+Nearest+Scruz+Adjacent,family=poisson,data=gala)
+summary(modb)
+deviance(modb)-deviance(mod)
+1-pchisq(1672.723,1)
+```
+
+The p-value is 0, hence, we should reject the null hypothese that $\beta_{Elev}=0$.
+
+(c) Use the Pearson Chi-squared statistic in place of the deviance in the previous test. 
+
+```{r}
+link.preds <- predict(modb,type="link")
+muhat <- exp(link.preds)
+pcs <- sum((gala$Species-muhat)^2/muhat)
+1-pchisq(pcs,25)
+```
+
+The p-value is 0, hence we should reject the null hypothese that $\beta_{Elev}=0$.
+
+
+(d) Fit the Poisson model with a free dispersion parameter as described in Section 5.2. Make the test using the model summary. 
+
+The p value for the F test is small, hence we should reject the null hypothese that $\beta_{Elev}=0$.
+
+```{r}
+mod1 <- glm(Species~Area+Elevation+Nearest+Scruz+Adjacent,family=quasipoisson,data=gala)
+summary(mod1)
+
+mod2 <- glm(Species~Area+Nearest+Scruz+Adjacent,family=quasipoisson,data=gala)
+summary(mod2)
+1-pchisq(deviance(mod2)-deviance(mod1),1)
+```
+
+
+### 8.6 (A,B,D-F)
+
+
+The worldcup data were collected at the 2010 World Cup. We are interested in modeling the number of shots taken by each player. As goalkeepers do not normally shoot, you should remove them from the dataset. Due to substitution and varying success in the tournament, the number of minutes played by each player is quite variable. For this reason, compute new variables that represent the number of tackles and passes made per 90-minute game.
+ 
+ (a) Fit a Poisson model with the number of shots as the response and team, position, tackles and passes per game as predictor. Note that time played is a rate variable and should be accounted for as described in Section 5.3. Interpret the effect of tackles and passes on shots.
+
+```{r}
+wc <- worldcup[!(worldcup$Position=="Goalkeeper"),]
+wc$tpg <- wc$Tackles/wc$Time*90 #tackles per game
+wc$ppg <- wc$Passes/wc$Time*90 # passes per game
+mod <- glm(Shots~Team+Position+offset(tpg)+offset(ppg),family=poisson,wc)
+```
+
+Since we offset the variable tackles per game and passes per game, the coefficient of these variables are 1. Hence, the effect of tackles per game is when it increases by 1, the probability of shots will increases by 2.71% ($e^1$). So does the passes per game.
+
+ (b) Calculate the leverages for the current model. Report which player has the highest leverage and suggest why this might be so. Make an appropriate plot of the leverages and comment on whether any leverage is exceptional. 
+ 
+```{r}
+n <- which(influence(mod)$hat > 2*5/559)
+sort(influence(mod)$hat[n],decreasing = TRUE)[1:9]
+wc["Inamoto",]
+wc["Komac",]
+wc["Sapara",]
+wc["FernandezUF",]
+wc["Jedinak",]
+wc["Josue",]
+wc["Afellay",]
+wc["Amorim",]
+```
+ 
+The player Jedinak, FernandezUF, Inamoto, Komac, Sapara, Josue, Afellay, and     Amorim have the highest leverage. 
+Komac has the higest value on tackles per game among all the players. While Sapara and Inamoto have highest passes per game among all the players, which values as 225 and 150 seperately, and their passes per game is 0.
+Jedinak is team Austrlia who has the tackles per game is 0 and largest passes per game among his team players.  
+FernandezUF is from team Uruguay, who has the tackles per game is 0 and largest passes per game among his team players. 
+Josue is from team Brazil, who has the tackles per game is 1.956522 and largest passes per game among his team players.
+Afellay is from team Netherlands, who has the tackles per game is 0 and largest passes per game among his team players.
+Amorim is from team Portugal, who has the tackles per game is 0 and largest passes per game among his team players. 
+Aside from the above observations, there are plenty of observations' leverage are very close to 1. Since the size of data is pretty large and there are a lot of categories (Team, Position) in this data, we may not consider the leverage could be exceptional.
+
+```{r}
+halfnorm(influence(mod)$hat)
+```
+ 
+ (d) Calculate the Cook Statistics. Which player has the largest such statistic and what is unusual about him?
+ 
+```{r}
+n <- which(cooks.distance(mod) > 4/559)
+which.max(cooks.distance(mod)[n])
+wc["Amorim",]
+```
+
+It's Amorim who has the largest Cooks distance. He has the third largest passes per game value among all the players and his tackles per game is 0. He only play for 5 minutes in the field, make 7 passes and has 1 shot. He is the one spend least time in the field and has 1 shot. 
+
+ (e) Find the jackknife residuals. Find the player with the largest absolute residual of this kind. How did he come to be the largest?
+
+```{r} 
+sort(abs(rstudent(mod)),decreasing = T)[1:20]
+wc["Amorim",]
+```
+
+The Amorim has the largest jackknife residuals. The reason is stated in the previous question. He spend least time in the field and shot once. 
+
+ (f) Plot the residuals against the appropriate fitted values. Explain the source of the lines of points appearing on the plot. What does this plot indicate? 
+ 
+This plot indicates the resiudals of the Amorim is quite large compare to other players. The points are forces to a line since they are relatively small compared to the Amorim's residuals.
+ 
+```{r}
+linear.preds <- predict(mod,type='link')
+plot(rstudent(mod)~linear.preds,xlab=expression(hat(eta),ylab="student deviance residuals"))
+abline(h=0)
+```
